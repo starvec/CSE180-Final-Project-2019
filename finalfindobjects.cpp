@@ -2,10 +2,13 @@
 #include <tf/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2/convert.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <sensor_msgs/PointCloud.h>
 #include <geometry_msgs/Point32.h>
+#include <geometry_msgs/PointStamped.h>
 #include <vector>
 #include <queue>
 #include <utility>
@@ -138,13 +141,15 @@ int main(int argc, char** argv)
 
     sensor_msgs::PointCloud tableLegPoints;
     sensor_msgs::PointCloud mailBoxPoints;
-    geometry_msgs::Point32 tempObstaclePoint;
+    geometry_msgs::PointStamped tempOdomPoint;
+    geometry_msgs::PointStamped tempMapPoint;
+    geometry_msgs::Point32 tempCloudPoint;
 
     tableLegPoints.header.seq = 0;
-    tableLegPoints.header.frame_id = "odom";
+    tableLegPoints.header.frame_id = "map";
 
     mailBoxPoints.header.seq = 0;
-    mailBoxPoints.header.frame_id = "odom";
+    mailBoxPoints.header.frame_id = "map";
   
     while (ok())
     {
@@ -177,24 +182,44 @@ int main(int argc, char** argv)
             {
                 if (clusters.at(i).size > 200 && clusters.at(i).size < 300 && clusters.at(i).spread < 7)
                 {
-                    tempObstaclePoint.x = clusters.at(i).center.first*0.05 + diffMap.info.origin.position.x;
-                    tempObstaclePoint.y = clusters.at(i).center.second*0.05 + diffMap.info.origin.position.y;
-                    tempObstaclePoint.z = 0;
+                    //Convert from matrix index coordinates to coordinates in terms of odom in meters
+                    tempOdomPoint.point.x = clusters.at(i).center.first*0.05 + diffMap.info.origin.position.x;
+                    tempOdomPoint.point.y = clusters.at(i).center.second*0.05 + diffMap.info.origin.position.y;
+                    tempOdomPoint.point.z = 0;
 
-                    tableLegPoints.points.push_back(tempObstaclePoint);
+                    //Transform coordinates from odom to map
+                    tf2::doTransform(tempOdomPoint, tempMapPoint, odom_wrt_map);
 
-                    ROS_INFO_STREAM("Table Leg at (" << tempObstaclePoint.x << ", " << tempObstaclePoint.y << ") has size " << clusters.at(i).size <<
+                    //Put these coordinates into a temporary Point32 object
+                    tempCloudPoint.x = tempMapPoint.point.x;
+                    tempCloudPoint.y = tempMapPoint.point.y;
+                    tempCloudPoint.z = tempMapPoint.point.z;
+
+                    //Push that object into the table legs point cloud
+                    tableLegPoints.points.push_back(tempCloudPoint);
+
+                    ROS_INFO_STREAM("Table Leg at (" << tempMapPoint.point.x << ", " << tempMapPoint.point.y << ") has size " << clusters.at(i).size <<
                                         " and spread " << clusters.at(i).spread);
                 }
                 else if (clusters.at(i).size > 400 && clusters.at(i).size < 700 && clusters.at(i).spread < 10)
                 {
-                    tempObstaclePoint.x = clusters.at(i).center.first*0.05 + diffMap.info.origin.position.x;
-                    tempObstaclePoint.y = clusters.at(i).center.second*0.05 + diffMap.info.origin.position.y;
-                    tempObstaclePoint.z = 0;
+                    //Convert from matrix index coordinates to coordinates in terms of odom in meters
+                    tempOdomPoint.point.x = clusters.at(i).center.first*0.05 + diffMap.info.origin.position.x;
+                    tempOdomPoint.point.y = clusters.at(i).center.second*0.05 + diffMap.info.origin.position.y;
+                    tempOdomPoint.point.z = 0;
 
-                    mailBoxPoints.points.push_back(tempObstaclePoint);
+                    //Transform coordinates from odom to map
+                    tf2::doTransform(tempOdomPoint, tempMapPoint, odom_wrt_map);
 
-                    ROS_INFO_STREAM("Mail Box at (" << tempObstaclePoint.x << ", " << tempObstaclePoint.y << ") has size " << clusters.at(i).size <<
+                    //Put these coordinates into a temporary Point32 object
+                    tempCloudPoint.x = tempMapPoint.point.x;
+                    tempCloudPoint.y = tempMapPoint.point.y;
+                    tempCloudPoint.z = tempMapPoint.point.z;
+
+                    //Push that object into the mail boxes point cloud
+                    mailBoxPoints.points.push_back(tempCloudPoint);
+
+                    ROS_INFO_STREAM("Mail Box at (" << tempMapPoint.point.x << ", " << tempMapPoint.point.y << ") has size " << clusters.at(i).size <<
                                         " and spread " << clusters.at(i).spread);
                 }
             }
