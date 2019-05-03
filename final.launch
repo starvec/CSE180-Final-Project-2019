@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+
+<launch>
+	<node 
+		pkg= "assignments"
+		type= "finalmove"
+		name= "finalmove"
+		output="screen"
+	/>
+	
+	<node 
+		pkg= "assignments"
+		type= "finalgetglobal"
+		name= "finalgetglobal"
+	/>
+
+	<node 
+		pkg= "assignments"
+		type= "finalgetdifference"
+		name= "finalgetdifference"
+	/>
+	
+	<node 
+		pkg= "assignments"
+		type= "finalfindobjects"
+		name= "finalfindobjects"
+		
+	/>
+</launch>
