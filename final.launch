@@ -5,7 +5,6 @@
 		pkg= "assignments"
 		type= "finalmove"
 		name= "finalmove"
-		output="screen"
 	/>
 	
 	<node 
@@ -24,6 +23,6 @@
 		pkg= "assignments"
 		type= "finalfindobjects"
 		name= "finalfindobjects"
-		
+		output="screen"
 	/>
 </launch>
