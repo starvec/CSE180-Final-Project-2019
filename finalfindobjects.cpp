@@ -19,7 +19,7 @@ using namespace ros;
 nav_msgs::OccupancyGrid diffMap;
 bool diffMapRecieved = false;
 
-std::vector<bool> pointProcessed(40000, false);
+std::vector<bool> pointDiscovered(40000, false);
 
 int cartToRowMajor(int x, int y) {
     return y*diffMap.info.width + x;
@@ -54,37 +54,42 @@ struct Cluster
     {
         std::pair<int, int> currentPoint = std::make_pair(x, y);
         pointQueue.push(currentPoint);
-        pointProcessed.at(cartToRowMajor(currentPoint.first, currentPoint.second)) = true;
+        pointDiscovered.at(cartToRowMajor(currentPoint.first, currentPoint.second)) = true;
 
         while (!pointQueue.empty())
         {
+            //Remove the current point from the queue and put it into this cluster's list of points
             currentPoint = pointQueue.front();
             pointQueue.pop();
             points.push_back(currentPoint);
 
-            //X + 1
-            if (currentPoint.first + 1 < 200 && diffMap.data.at(cartToRowMajor(currentPoint.first + 1, currentPoint.second)) > 0 && !pointProcessed.at(cartToRowMajor(currentPoint.first + 1, currentPoint.second)))
+            //If the point to the right of the current point is in bounds and has a value > 0 and has not been discovered yet...
+            if (currentPoint.first + 1 < 200 && diffMap.data.at(cartToRowMajor(currentPoint.first + 1, currentPoint.second)) > 0 && !pointDiscovered.at(cartToRowMajor(currentPoint.first + 1, currentPoint.second)))
             {
+                //...put it in the queue to be processed and mark that it has been discovered
                 pointQueue.push(std::make_pair(currentPoint.first + 1, currentPoint.second));
-                pointProcessed.at(cartToRowMajor(currentPoint.first + 1, currentPoint.second)) = true;
+                pointDiscovered.at(cartToRowMajor(currentPoint.first + 1, currentPoint.second)) = true;
             }
-            //X - 1
-            if (currentPoint.first - 1 >= 0 && diffMap.data.at(cartToRowMajor(currentPoint.first - 1, currentPoint.second)) > 0 && !pointProcessed.at(cartToRowMajor(currentPoint.first - 1, currentPoint.second)))
+            //If the point to the left of the current point is in bounds and has a value > 0 and has not been discovered yet...
+            if (currentPoint.first - 1 >= 0 && diffMap.data.at(cartToRowMajor(currentPoint.first - 1, currentPoint.second)) > 0 && !pointDiscovered.at(cartToRowMajor(currentPoint.first - 1, currentPoint.second)))
             {
+                //...put it in the queue to be processed and mark that it has been discovered
                 pointQueue.push(std::make_pair(currentPoint.first - 1, currentPoint.second));
-                pointProcessed.at(cartToRowMajor(currentPoint.first - 1, currentPoint.second)) = true;
+                pointDiscovered.at(cartToRowMajor(currentPoint.first - 1, currentPoint.second)) = true;
             }
-            //Y + 1
-            if (currentPoint.second + 1 < 200 && diffMap.data.at(cartToRowMajor(currentPoint.first, currentPoint.second + 1)) > 0 && !pointProcessed.at(cartToRowMajor(currentPoint.first, currentPoint.second + 1)))
+            //If the point above the current point is in bounds and has a value > 0 and has not been discovered yet...
+            if (currentPoint.second + 1 < 200 && diffMap.data.at(cartToRowMajor(currentPoint.first, currentPoint.second + 1)) > 0 && !pointDiscovered.at(cartToRowMajor(currentPoint.first, currentPoint.second + 1)))
             {
+                //...put it in the queue to be processed and mark that it has been discovered
                 pointQueue.push(std::make_pair(currentPoint.first, currentPoint.second + 1));
-                pointProcessed.at(cartToRowMajor(currentPoint.first, currentPoint.second + 1)) = true;
+                pointDiscovered.at(cartToRowMajor(currentPoint.first, currentPoint.second + 1)) = true;
             }
-            //Y - 1
-            if (currentPoint.second - 1 >= 0 && diffMap.data.at(cartToRowMajor(currentPoint.first, currentPoint.second - 1)) > 0 && !pointProcessed.at(cartToRowMajor(currentPoint.first, currentPoint.second - 1)))
+            //If the point below the current point is in bounds and has a value > 0 and has not been discovered yet...
+            if (currentPoint.second - 1 >= 0 && diffMap.data.at(cartToRowMajor(currentPoint.first, currentPoint.second - 1)) > 0 && !pointDiscovered.at(cartToRowMajor(currentPoint.first, currentPoint.second - 1)))
             {   
+                //...put it in the queue to be processed and mark that it has been discovered
                 pointQueue.push(std::make_pair(currentPoint.first, currentPoint.second - 1));
-                pointProcessed.at(cartToRowMajor(currentPoint.first, currentPoint.second - 1)) = true;
+                pointDiscovered.at(cartToRowMajor(currentPoint.first, currentPoint.second - 1)) = true;
             }
         }
 
@@ -94,6 +99,7 @@ struct Cluster
         findSpread();
     }
 
+    //Find the center of the cluster
     std::pair<int, int> findCenter()
     {
         double totalX, totalY = 0;
@@ -107,6 +113,7 @@ struct Cluster
         center = std::make_pair(totalX/size, totalY/size);
     }
 
+    //Find the average distance from each point to the center
     float findSpread()
     {
         double totalSpread = 0;
@@ -159,7 +166,7 @@ int main(int argc, char** argv)
         }
         catch (tf2::TransformException &ex)
         {
-            ROS_WARN("%s",ex.what());
+            //ROS_WARN("%s",ex.what());
             continue;
         }
 
@@ -170,7 +177,7 @@ int main(int argc, char** argv)
             {
                 for (int y = 0; y < 200; y++)
                 {
-                    if (!pointProcessed.at(cartToRowMajor(x, y)) && diffMap.data.at(cartToRowMajor(x, y)) > 0)
+                    if (!pointDiscovered.at(cartToRowMajor(x, y)) && diffMap.data.at(cartToRowMajor(x, y)) > 0)
                     {
                         clusters.push_back(Cluster(x, y));
                     }
@@ -227,12 +234,12 @@ int main(int argc, char** argv)
             //Finishing up and publishing point clouds
             tableLegPoints.header.seq++;
             tableLegPoints.header.stamp = Time::now();
-            ROS_INFO_STREAM("Publishing table leg point cloud");
+            //ROS_INFO_STREAM("Publishing table leg point cloud");
             pubTableLegPoints.publish(tableLegPoints);
 
             mailBoxPoints.header.seq++;
             mailBoxPoints.header.stamp = Time::now();
-            ROS_INFO_STREAM("Publishing mail box point cloud");
+            //ROS_INFO_STREAM("Publishing mail box point cloud");
             pubMailBoxPoints.publish(mailBoxPoints);
 
             //Resetting point cloud points
@@ -240,11 +247,12 @@ int main(int argc, char** argv)
             mailBoxPoints.points.clear();
         }
 
-        //Reset cluster objects and pointProcessed map
+        //Reset cluster objects and pointDiscovered map
         clusters.clear();
-        for (int i = 0; i < pointProcessed.size(); i++)
-            pointProcessed.at(i) = false;
+        for (int i = 0; i < pointDiscovered.size(); i++)
+            pointDiscovered.at(i) = false;
         
+        //Make sure we get a new difference map before processing the data again
         diffMapRecieved = false;
 
         spinOnce();

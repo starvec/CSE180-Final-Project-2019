@@ -25,9 +25,9 @@ void receiveLocalMap(const nav_msgs::OccupancyGrid &msg)
     differenceMap.info.origin.position.y = localMap.info.origin.position.y;
 }
 
-signed char constrain(signed char val, signed char min)
+signed char constrain(signed char val, signed char min, signed char max)
 {
-    if (val < min)
+    if (val < min || val > max)
         return 0;
     return val;
 }
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
             for (int i = 0; i < 40000; i++)
             {
                 
-                differenceMap.data.at(i) = constrain(localMap.data.at(i) - globalMap.data.at(i), 75);
+                differenceMap.data.at(i) = constrain(localMap.data.at(i) - globalMap.data.at(i), 75, 110);
             }
 
             ROS_INFO_STREAM("Publishing Difference Map");
