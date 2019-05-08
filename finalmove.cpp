@@ -130,9 +130,9 @@ void serviceFeedback(const move_base_msgs::MoveBaseFeedbackConstPtr& fb)
     //For every table leg
     for (int i = 0; i < tableLegs.points.size(); i++)
     {
-        //If distance between the current goal and this table leg is < 1 and the distance between the current goal and the husky is < 2...
+        //If distance between the current goal and this table leg is < 1 and the distance between this table leg and the husky is < 1.5...
         if (sqrt(pow(goal.at(currentPoseIndex).target_pose.pose.position.x - tableLegs.points.at(i).x, 2) + pow(goal.at(currentPoseIndex).target_pose.pose.position.y - tableLegs.points.at(i).y, 2)) < 1 &&
-                sqrt(pow(goal.at(currentPoseIndex).target_pose.pose.position.x - fb->base_position.pose.position.x, 2) + pow(goal.at(currentPoseIndex).target_pose.pose.position.y - fb->base_position.pose.position.y, 2)) < 2)
+                sqrt(pow(tableLegs.points.at(i).x - fb->base_position.pose.position.x, 2) + pow(tableLegs.points.at(i).y - fb->base_position.pose.position.y, 2)) < 1.5)
                 {
                     //...cancel the current goal
                     needToCancelGoal = true;
@@ -142,9 +142,9 @@ void serviceFeedback(const move_base_msgs::MoveBaseFeedbackConstPtr& fb)
     //For every mail box
     for (int i = 0; i < mailBoxes.points.size(); i++)
     {
-        //If distance between the current goal and this mail box is < 1 and the distance between the current goal and the husky is < 2...
+        //If distance between the current goal and this mailbox is < 1 and the distance between this mailbox and the husky is < 2...
         if (sqrt(pow(goal.at(currentPoseIndex).target_pose.pose.position.x - mailBoxes.points.at(i).x, 2) + pow(goal.at(currentPoseIndex).target_pose.pose.position.y - mailBoxes.points.at(i).y, 2)) < 1 &&
-                sqrt(pow(goal.at(currentPoseIndex).target_pose.pose.position.x - fb->base_position.pose.position.x, 2) + pow(goal.at(currentPoseIndex).target_pose.pose.position.y - fb->base_position.pose.position.y, 2)) < 2)
+                sqrt(pow(mailBoxes.points.at(i).x - fb->base_position.pose.position.x, 2) + pow(mailBoxes.points.at(i).y - fb->base_position.pose.position.y, 2)) < 2)
                 {
                     //...cancel the current goal
                     needToCancelGoal = true;
@@ -176,7 +176,6 @@ int main(int argc,char **argv) {
     ROS_INFO_STREAM("done!");
 
     createGoalPoints();
-    pubGoalPoints.publish(goalPoints);
 
     while (ok())
     {
@@ -192,6 +191,7 @@ int main(int argc,char **argv) {
             ROS_WARN("Cancelling goal due to obstacle");
         }
 
+        pubGoalPoints.publish(goalPoints);
         rate.sleep();
         spinOnce();
     }
