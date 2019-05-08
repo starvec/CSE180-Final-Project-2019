@@ -136,6 +136,7 @@ int main(int argc, char** argv)
     Rate rate(2);
 
     Publisher pubTableLegPoints = nh.advertise<sensor_msgs::PointCloud>("move_base/table_legs",1000);
+    Publisher pubTablePoints = nh.advertise<sensor_msgs::PointCloud>("move_base/tables",1000);
     Publisher pubMailBoxPoints = nh.advertise<sensor_msgs::PointCloud>("move_base/mail_boxes",1000);
     Subscriber subDiffMap = nh.subscribe("move_base/difference_map",1000,&receiveDiffMap);
 
@@ -147,6 +148,7 @@ int main(int argc, char** argv)
     std::vector<Cluster> clusters;
 
     sensor_msgs::PointCloud tableLegPoints;
+    sensor_msgs::PointCloud tablePoints;
     sensor_msgs::PointCloud mailBoxPoints;
     geometry_msgs::PointStamped tempOdomPoint;
     geometry_msgs::PointStamped tempMapPoint;
@@ -154,6 +156,9 @@ int main(int argc, char** argv)
 
     tableLegPoints.header.seq = 0;
     tableLegPoints.header.frame_id = "map";
+
+    tablePoints.header.seq = 0;
+    tablePoints.header.frame_id = "map";
 
     mailBoxPoints.header.seq = 0;
     mailBoxPoints.header.frame_id = "map";
@@ -187,7 +192,7 @@ int main(int argc, char** argv)
             //Categorize clusters as table legs, mail boxes, or do nothing with them
             for (int i = 0; i < clusters.size(); i++)
             {
-                if (clusters.at(i).size > 200 && clusters.at(i).size < 300 && clusters.at(i).spread < 7)
+                if (clusters.at(i).size > 180 && clusters.at(i).size < 300 && clusters.at(i).spread < 7)
                 {
                     //Convert from matrix index coordinates to coordinates in terms of odom in meters
                     tempOdomPoint.point.x = clusters.at(i).center.first*0.05 + diffMap.info.origin.position.x;
@@ -205,8 +210,8 @@ int main(int argc, char** argv)
                     //Push that object into the table legs point cloud
                     tableLegPoints.points.push_back(tempCloudPoint);
 
-                    ROS_INFO_STREAM("Table Leg at (" << tempMapPoint.point.x << ", " << tempMapPoint.point.y << ") has size " << clusters.at(i).size <<
-                                        " and spread " << clusters.at(i).spread);
+                    //ROS_INFO_STREAM("Table Leg at (" << tempMapPoint.point.x << ", " << tempMapPoint.point.y << ") has size " << clusters.at(i).size <<
+                    //                    " and spread " << clusters.at(i).spread);
                 }
                 else if (clusters.at(i).size > 400 && clusters.at(i).size < 700 && clusters.at(i).spread < 10)
                 {
@@ -226,31 +231,68 @@ int main(int argc, char** argv)
                     //Push that object into the mail boxes point cloud
                     mailBoxPoints.points.push_back(tempCloudPoint);
 
-                    ROS_INFO_STREAM("Mail Box at (" << tempMapPoint.point.x << ", " << tempMapPoint.point.y << ") has size " << clusters.at(i).size <<
-                                        " and spread " << clusters.at(i).spread);
+                    ROS_INFO_STREAM("Mail Box at (" << tempMapPoint.point.x << ", " << tempMapPoint.point.y << ")");// has size " << clusters.at(i).size <<
+                    //                    " and spread " << clusters.at(i).spread);
                 }
+            }
+
+            //Finding tables given the discovered table legs
+            if (tableLegPoints.points.size() == 4)
+            {
+                double totalX, totalY, totalSpread = 0;
+
+                //Find table center
+                for (int i = 0; i < 4; i++)
+                {
+                    totalX += tableLegPoints.points.at(i).x;
+                    totalY += tableLegPoints.points.at(i).y;
+                }
+
+                tempCloudPoint.x = totalX/4;
+                tempCloudPoint.y = totalY/4;
+                tempCloudPoint.z = 0;
+
+                totalX = 0;
+                totalY = 0;
+                totalSpread = 0;
+
+                //Finding the average distance from each table leg to the table center
+                for (int i = 0; i < 4; i++)
+                {
+                    totalSpread += sqrt(pow(tableLegPoints.points.at(i).x - tempCloudPoint.x, 2) + pow(tableLegPoints.points.at(i).y - tempCloudPoint.y, 2));
+                }
+
+                //If the spread is too much, it is likely that this is not a real table
+                if (totalSpread/4 < 1.5)
+                {
+                    tablePoints.points.push_back(tempCloudPoint);
+                    ROS_INFO_STREAM("Table at (" << tempCloudPoint.x << ", " << tempCloudPoint.y << ")");// with spread " << totalSpread/4);
+                }  
             }
 
             //Finishing up and publishing point clouds
             tableLegPoints.header.seq++;
             tableLegPoints.header.stamp = Time::now();
-            //ROS_INFO_STREAM("Publishing table leg point cloud");
             pubTableLegPoints.publish(tableLegPoints);
+
+            tablePoints.header.seq++;
+            tablePoints.header.stamp = Time::now();
+            pubTablePoints.publish(tablePoints);
 
             mailBoxPoints.header.seq++;
             mailBoxPoints.header.stamp = Time::now();
-            //ROS_INFO_STREAM("Publishing mail box point cloud");
             pubMailBoxPoints.publish(mailBoxPoints);
 
             //Resetting point cloud points
             tableLegPoints.points.clear();
+            tablePoints.points.clear();
             mailBoxPoints.points.clear();
-        }
 
-        //Reset cluster objects and pointDiscovered map
-        clusters.clear();
-        for (int i = 0; i < pointDiscovered.size(); i++)
-            pointDiscovered.at(i) = false;
+            //Reset cluster objects and pointDiscovered map
+            clusters.clear();
+            for (int i = 0; i < pointDiscovered.size(); i++)
+                pointDiscovered.at(i) = false;
+        }
         
         //Make sure we get a new difference map before processing the data again
         diffMapRecieved = false;
