@@ -2,6 +2,7 @@
 #include <actionlib/client/simple_action_client.h>
 #include <move_base_msgs/MoveBaseAction.h>
 #include <sensor_msgs/PointCloud.h>
+#include <geometry_msgs/Point32.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <vector>
 #include <cmath>
@@ -16,6 +17,7 @@ std::vector<bool> sentPose;
 nav_msgs::OccupancyGrid global;
 sensor_msgs::PointCloud tableLegs;
 sensor_msgs::PointCloud mailBoxes;
+sensor_msgs::PointCloud goalPoints;
 
 bool receivedGlobal = false;
 bool receivedTableLegs = false;
@@ -29,6 +31,10 @@ signed char getGlobalValueAt(int x, int y) {
 void createGoalPoints()
 {
     move_base_msgs::MoveBaseGoal goalTemp;
+    geometry_msgs::Point32 tempGoalPoint;
+
+    goalPoints.header.frame_id = "map";
+    goalPoints.header.stamp = Time::now();
 
     goalTemp.target_pose.header.frame_id = "map";
     goalTemp.target_pose.header.stamp = Time::now();
@@ -50,6 +56,10 @@ void createGoalPoints()
                 goalTemp.target_pose.pose.orientation.z = 0.7071068*mod;
                 goal.push_back(goalTemp);
                 sentPose.push_back(false);
+
+                tempGoalPoint.x = i;
+                tempGoalPoint.y = j*mod;
+                goalPoints.points.push_back(tempGoalPoint);
             }
             else
             {
@@ -152,6 +162,7 @@ int main(int argc,char **argv) {
     Subscriber subGlobalMap = nh.subscribe("move_base/global_costmap/costmap",1000,&receiveGlobalMap);
     Subscriber subTableLegCloud = nh.subscribe("move_base/table_legs",1000,&receiveTableLegCloud);
     Subscriber subMailBoxCloud = nh.subscribe("move_base/mail_boxes",1000,&receiveMailBoxCloud);
+    Publisher pubGoalPoints = nh.advertise<sensor_msgs::PointCloud>("move_base/goals",1000);
 
     actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> ac("move_base", true);
     ROS_INFO_STREAM("Waiting for server to be available...");
@@ -165,6 +176,7 @@ int main(int argc,char **argv) {
     ROS_INFO_STREAM("done!");
 
     createGoalPoints();
+    pubGoalPoints.publish(goalPoints);
 
     while (ok())
     {
